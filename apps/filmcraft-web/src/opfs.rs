@@ -58,7 +58,10 @@ async fn file_handle(rel: &str, create: bool) -> Result<FileSystemFileHandle, Js
 async fn write_now(rel: &str, data: &[u8]) -> Result<(), JsValue> {
     let fh = file_handle(rel, true).await?;
     let w: web_sys::FileSystemWritableFileStream = JsFuture::from(fh.create_writable()).await?.dyn_into()?;
-    JsFuture::from(w.write_with_u8_array(data)?).await?;
+    // WebKit writes the whole ArrayBuffer behind a Uint8Array view, ignoring its offset and length, so a
+    // view into wasm memory would store the entire heap. A copy owns exactly its bytes.
+    let copy = js_sys::Uint8Array::from(data);
+    JsFuture::from(w.write_with_js_u8_array(&copy)?).await?;
     JsFuture::from(w.close()).await?;
     Ok(())
 }
